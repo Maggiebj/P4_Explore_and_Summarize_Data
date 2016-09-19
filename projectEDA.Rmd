@@ -1,0 +1,677 @@
+RedwineData Exploration by Xin Meng
+========================================================
+This report explores a dataset containing physicochemical properties and quality of 1599 samples of red wine.
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(GGally)
+library(psych)
+library(corrplot)
+library(PerformanceAnalytics)
+library(nnet)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+setwd('E:/ÎÒµÄ/udacity/dataanalysisND/P4 Explore and Summerize Data/project')
+data = read.csv('wineQualityReds.csv')
+names(data)
+head(data)
+# Fuction of create histograms,here x should be a continuous variable
+Create_histogram <- function(variable, binwidth) {
+  return(ggplot(aes_string(x = variable), 
+                data = data) + 
+           geom_histogram(binwidth = binwidth))}
+# Fuction of create smooth
+Create_smooth <- function(variablex, variabley) { 
+    return(ggplot(aes_string(x = variablex, y = variabley),
+                  data = data) +
+    geom_point(alpha = 1/5) +
+    geom_smooth(method='lm')) }
+# Fuction of create boxplot,variablex should be categotical variable.Show mean,smooth line with 'lm'. 
+Create_boxplot <- function(variabley) {
+    return(ggplot(aes(x = factor(data[, "quality"]),y =data[, variabley]),
+                  data = data) +
+               geom_jitter(alpha = 0.3) +
+               geom_boxplot(alpha = 0.5, color = 'blue') +
+               stat_summary(fun.y = 'mean',
+                            geom = 'point',
+                            color = 'red',
+                            shape = 8,
+                            size = 4)+
+               geom_smooth(aes(x=quality-2,
+                               y=data[, variabley]),
+                           method = 'lm',
+                           se = FALSE,
+                           size = 2))
+     }
+
+
+```
+
+
+
+# Univariate Plots Section
+Our dataset consists of 13 variables, with 1599 observations.There's no NAs in the dataset.
+```{r echo=FALSE, Univariate_Plots}
+# Summary description of data
+dim(data)
+str(data)
+summary(data)
+sum(is.na(data))
+
+```
+
+Most samples quality scores are 5,6 and 7,fewer samples are less than 5 or more than 7.The quality scores were graded by expert between 0(very bad) and 10(very excellent).That means there are much more normal wines than excellent or poor ones.The distribution is nearly Normal distribution.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+# Use qplot instead of create_histogram, for quality should be treated as factor
+qplot(x = as.factor(data$quality),data = data) 
+summary(data$quality)
+```
+
+Let's examine the histogram of each feature. We find that most variables are look like normal distribution. Some variables are right skewed.We use log10 transformation with there variables.
+Fixed.acidity like normal distribution, median is 7.9
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+
+Create_histogram('fixed.acidity', 0.1)
+#qplot(x=fixed.acidity,data=data,binwidth=0.1)
+summary(data$fixed.acidity)
+
+```
+
+Volatile.acidity like normal distribution,median is 0.52.But it seems have two peak.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('volatile.acidity', 0.02)
+summary(data$volatile.acidity)
+```
+
+Citric.acid looks like uniform, with 75% samples less than 0.42.There're 132 samples have citric.acid=0.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('citric.acid', 0.1)
+summary(data$citric.acid)
+table(data$citric.acid==0)
+```
+
+Residual.suger has a normal like distribution.Median is 2.2.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('residual.sugar', 0.1)
+summary(data$residual.sugar)
+```
+
+Chlorides has a normal like distribution.Median is 0.079.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('chlorides', 0.001)
+summary(data$chlorides)
+```
+
+Free.sulfur.dioxide has right long tail, median is 14.0, using log10 transformation and get normal like distribution.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('free.sulfur.dioxide', 1)
+summary(data$free.sulfur.dioxide)
+Create_histogram('free.sulfur.dioxide',0.01) +
+    scale_x_log10()+  # log10 transformation of x
+    xlab('log10 (free.sulfur.dioxide)')
+```
+
+Total.sulfur.dioxide has right long tail, median is 38.0, using log10 transformation and get normal like distribution.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('total.sulfur.dioxide', 1 )
+summary(data$total.sulfur.dioxide)
+Create_histogram('total.sulfur.dioxide', 0.01 ) +
+    scale_x_log10() + # log10 transformation of x
+    xlab('log10 (total.sulfur.dioxide)')
+```
+
+Density has normal like distribution.median is 0.9968.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('density', 0.001)
+summary(data$density)
+```
+
+pH has normal like distribution,median is 3.31
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('pH', 0.01)
+summary(data$pH)
+```
+
+Sulphates has normal like distribution, median is 0.62
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('sulphates', 0.01)
+summary(data$sulphates)
+```
+
+Alcohol has right long tail,median is 10.2, using log10 transformation and get normal like distribution.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_histogram('alcohol', 0.1)
+summary(data$alcohol)
+Create_histogram('alcohol', 0.01) +
+    scale_x_log10()+ #log10 transformation of x
+    xlab('log10 (alcohol)')
+```
+
+I created a new feature of ratioacidity=volatile acidity/fixed acidity. The histogram of ratioacidity has a normal like distribution, and have 2 peaks like volatile.acidity.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+data <- transform(data, ratioacidity = volatile.acidity/fixed.acidity)
+summary(data$ratioacidity)
+Create_histogram('ratioacidity', 0.01)
+```
+
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+There are 1159 wine samples in the dataset with 12 features( "fixed.acidity","volatile.acidity","citric.acid","residual.sugar","chlorides","free.sulfur.dioxide","total.sulfur.dioxide","density","pH","sulphates","alcohol","quality") All features except "quality" are double precision numerics.The "quality"" is int can be treated as categorical variable, which is the score graded by wine expert.
+
+(worst----->best)
+quality:3,4,5,6,7,8
+
+Observations:
+
+Most samples are normal,with scores are 5,6,7 ,the excellent and poor ones are much fewer than normal ones.The median quality score is 6.The distribution of quality scores is normal distribution.
+
+Almost all features except citric.acid are normal like distribution, or are right skewed can be transformed to normal like distribution using log10. citric.acid looks like a uniform distribution.
+
+### What is/are the main feature(s) of interest in your dataset?
+I want to study on the relationship between quality score and physicochemical properties. I think excellent wine may have low volatile acidity, high citric acid. Other properties may also have some influence on quality.But I think there is no dominant factors to determine wine quality, it must be lots properties synthetically result in quality.
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+I think there is no dominant factors to determine wine quality, it must be lots properties synthetically result in quality. Later I'll examine the relationship between each feature and quality.
+
+### Did you create any new variables from existing variables in the dataset?
+I tried to create new variables of ratioacidity=volatile acidity/fixed acidity.
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+THere're some features has normal like distribution.Such as fixed.acidity,volatile.acidity,residual.suger,chlorides,density,pH,sulphates,quality. volatile.acidity seems have two peaks.
+
+There're some features are right skewed.Such as free.sulfur.dioxide,total.sulfur.dioxide,alcohol. I used log-transformed to these right skewed features and get normal like distribution.
+
+# Bivariate Plots Section
+
+We examined every 2 features'correlation coefficient.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE,Bivariate_Plots}
+#names(data)
+#corr.test(data[,-c(1)])#remove 'X' variable 
+#round(cor(data[2:14]),4)
+corrplot(cor(data), method='circle', type='upper')
+#pairs.panels(data[, 2:14])#remove 'X' variable 
+#pairs.panels(data[sample.int(nrow(data[,2:12]),50),2:12],params=list(size=20))
+```
+
+From the corrplot, we found that fixed.acidity and citric.acid ,fixed.acidity and density,free.sulfur.dioxide and total.sulfur.dioxide have high positive correlation.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_smooth('fixed.acidity', 'citric.acid')
+cor.test(x = data$fixed.acidity, y = data$citric.acid)
+
+Create_smooth('fixed.acidity', 'density')
+cor.test(x = data$fixed.acidity, y = data$density)
+
+Create_smooth('free.sulfur.dioxide', 'total.sulfur.dioxide')
+cor.test(x = data$free.sulfur.dioxide, y = data$total.sulfur.dioxide)
+
+```
+
+While fixed.acidity and pH, citric.acid and volatile.acidity,citric.acid and pH have high negtive correlation. Ratioacidity and citric.acid has high negtive correlation.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_smooth('fixed.acidity', 'pH')
+cor.test(x = data$fixed.acidity, y = data$pH)
+
+Create_smooth('citric.acid', 'volatile.acidity')
+cor.test(x = data$citric.acid, y = data$volatile.acidity)
+
+Create_smooth('citric.acid', 'pH')
+cor.test(x = data$citric.acid, y = data$pH)
+
+Create_smooth('citric.acid', 'ratioacidity')
+cor.test(x = data$citric.acid, y = data$ratioacidity)
+```
+
+Let's examine the relationship of median of each variable and quality.Since each variable has different units, we normalize them by scale() and compare the median of normalized variable on each quality in one plot.
+We can see a very interesting phenomenon that total.sulfur.dioxide and free.sulfur.dioxide firstly increases when quality increases, and when quality reach to 5,they reach the highest value and then go down . So excellent wine and worse wine both have lower total.sulfur.dioxide and free.sulfur.dioxide, while normal wine has higher total.sulfur.dioxide and free.sulfur.dioxide. 
+
+Alcohol first goes down with quality increases,and reaches the lowest value when quality is 5,and then goes up with quality increases.
+
+Citric.acid goes up with quality increases.
+
+Sulphates goes up when quality increases.
+
+Fixed.acidity firstly goes up with quality increases and it reaches the highest value when quality is 7,and then goes down when quality increases.
+
+Residual.sugar looks change very slightly with quality increases.
+
+Chlorides goes down with quality increases.
+
+pH goes down with quality increases.
+
+Density goes down with quality increases.
+
+Volatiel.acidity goes down with quality increases.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+data.matrix <- scale(data[,2:12],center=TRUE,scale=TRUE)
+data.norm <- data.frame(data.matrix)
+data.norm$X <- data$X
+data.norm$quality <- data$quality
+ggplot(data = data.norm) +
+  geom_line(aes(x = quality,
+                y = fixed.acidity,
+                color = "fixed.acidity"),
+            size = 1,
+            stat = 'summary',
+            fun.y = median) +
+  geom_line(aes(x = quality,
+                y = free.sulfur.dioxide,
+                color = "free.sulfur.dioxide"),
+            size = 1,
+            stat = 'summary',
+            fun.y = median) +
+  geom_line(aes(x = quality,
+                y = total.sulfur.dioxide,
+                color = "total.sulfur.dioxide"),
+            size = 1,
+            stat = 'summary',
+            fun.y = median) +
+  geom_line(aes(x = quality,
+                y = alcohol,
+                color = "alcohol"),
+            size = 1,
+            stat = 'summary',
+            fun.y = median) +
+     geom_line(aes(x = quality,
+                  y = volatile.acidity,
+                  color = "volatile.acidity"),
+              size = 1,
+              stat = 'summary',
+              fun.y = median) +
+    geom_line(aes(x = quality,
+                  y = citric.acid,
+                  color = "citric.acid"),
+              size = 1,
+              stat = 'summary',
+              fun.y = median) +
+    geom_line(aes(x = quality,
+                  y = residual.sugar,
+                  color = "residual.sugar"),
+              size = 1,
+              stat = 'summary',
+              fun.y = median) +
+    geom_line(aes(x = quality,
+                  y = chlorides,
+                  color = "chlorides"),
+              size = 1,
+              stat = 'summary',
+              fun.y = median) +
+    geom_line(aes(x = quality,
+                  y = density,
+                  color = "density"),
+              size = 1,
+              stat = 'summary',
+              fun.y = median) +
+    geom_line(aes(x = quality,
+                  y = pH,
+                  color = "pH"),
+              size = 1,
+              stat = 'summary',
+              fun.y = median) +
+    geom_line(aes(x = quality,
+                  y = sulphates,
+                  color = "sulphates"),
+              size = 1,
+              stat = 'summary',
+              fun.y = median) +
+  scale_color_manual(name = 'features', 
+                     values = c("fixed.acidity" = "red", 
+                              "free.sulfur.dioxide" = "navy",
+                              "total.sulfur.dioxide" = "green",
+                              "alcohol" = "blue",
+                              "volatile.acidity" = "purple",
+                        "citric.acid" = "gold",
+                        "residual.sugar" = "cyan",
+                        "chlorides" = "brown",
+                        "density" = "yellow",
+                        "pH" = "magenta",
+                        "sulphates" = "pink")) +
+    geom_vline(color = 'greenyellow',
+               linetype = 2,
+               size=2,
+               xintercept = c(5,6))
+
+```
+
+
+Let's have a more detail look at the variables from the boxplot.
+Fixed.acidity median goes up to the top when qualtiy is 7 ,but slightly go down when quality is 8.It has large variance when quanlity is 7 and 8.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+
+Create_boxplot('fixed.acidity') +
+    xlab('quality') +
+    ylab('fixed.acidity')
+cor.test(x=data$fixed.acidity,y=data$quality)
+
+```
+
+Volatile.acidity decreases when quality increase. High quality wine has lower volatile.acidity.
+
+citric.acid increases when quality increase. High quality wine has high citric.acid.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_boxplot('volatile.acidity') +
+    xlab('quality') +
+    ylab('volatile.acidity')
+cor.test(x=data$volatile.acidity,y=data$quality)
+Create_boxplot('citric.acid') +
+    xlab('quality') +
+    ylab('citric.acid')
+cor.test(x=data$citric.acid,y=data$quality)
+
+```
+
+Residual.sugar have slightly changes when quality goes up. It seems it not a good predictor variable.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_boxplot('residual.sugar') +
+    xlab('quality')+
+    ylab('citric.acid')
+cor.test(x=data$residual.sugar,y=data$quality)
+```
+
+
+Chlorides go down when quality increases.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_boxplot('chlorides') +
+    xlab('quality') +
+    ylab('chlorides')
+cor.test(x=data$chlorides,y=data$quality)
+
+```
+
+Free.sulfur.dioxide and total.sulfur.dioxide firstly go up when quality increases from bad wine to normal wine. They reach the highest value when quality is 5, and then they go down with quality increases from normal wine to excellent wind. Attention that since the majority of samples have quality 5,6,7, the regression line is dominated by the majority of samples and slightly impacted by samples which quality are 3,4,8. That's why you can only see the regression line have negetive correlation coefficient.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_boxplot('free.sulfur.dioxide') +
+    xlab('quality') +
+    ylab('free.sulfur.dioxide')
+cor.test(x=data$free.sulfur.dioxide,y=data$quality)
+
+Create_boxplot('total.sulfur.dioxide') +
+    xlab('quality') +
+    ylab('total.sulfur.dioxide')
+cor.test(x=data$total.sulfur.dioxide,y=data$quality)
+
+```
+
+Density and pH and ratioacidity go down when quality increases.
+
+Sulphates and alcohol  go up when quality increases.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+Create_boxplot('density') +
+    xlab('quality') +
+    ylab('density')
+cor.test(x=data$density,y=data$quality)
+
+Create_boxplot('pH') +
+    xlab('quality') +
+    ylab('pH')
+cor.test(x=data$pH,y=data$quality)
+
+Create_boxplot('sulphates') +
+    xlab('quality') +
+    ylab('sulphates')
+cor.test(x=data$sulphates,y=data$quality)
+
+Create_boxplot('alcohol') +
+    xlab('quality') +
+    ylab('alcohol')
+cor.test(x=data$alcohol,y=data$quality)
+
+Create_boxplot('ratioacidity') +
+    xlab('quality') +
+    ylab('ratioacidity')
+cor.test(x=data$alcohol,y=data$quality)
+```
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+High quality wine tends to have higher sulphates,citric.acid,alcohol and fixed.acidity, lower pH,volatile.acidity,chlorides,density and ratioacidity.
+
+Total.sulfur.dioxide and Free.sulful.dioxide firstly increase when quality increases, and then go down after reach the highest value when quality is 5. So excellent wine and worse wine both have lower total.sulfur.dioxide and Free.sulful.dioxide, while normal wine has higher total.sulfur.dioxide and Free.sulful.dioxide. Total.sulfur.dioxide and free.sulfur.dioxide are high correlated.
+
+Residual.sugar looks change very slight with quality increases.
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+we found that fixed.acidity and citric.acid ,fixed.acidity and density,free.sulfur.dioxide and total.sulfur.dioxide have high positive correlation.While fixed.acidity and pH, citric.acid and volatile.acidity,citric.acid and pH have high negtive correlation. Ratioacidity and citric.acid has high negtive correlation.
+
+### What was the strongest relationship you found?
+Quality may has the strongest relationship with alcohol , volatile.acidity , sulphates and citric.acid. 
+
+# Multivariate Plots Section
+
+Let's do a linear regression with all variables and figure out which have high significant levels pvalue.
+We lm() with all original variable without selfcreated variable.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+
+names(data)
+summary(lm(quality~., data = data[, -c(1,14)]))
+# remove X and Ratioacidity variables
+```
+
+We got volatile.acidity,chlorides,total.sulfur.dioxide,sulphates,alcohol have high significant pvalue.The R^2 = 0.3561.We keep these variables and do log10 transformation on total.sulfur.dioxide and alcohol,because they are right skewed. We do linear regression again.This time we got R^2=0.3462 which is pretty low.That means only 0.3462 of y variance be explained by the model.
+Let see the residuals plot. We can see a clearly pattern on the plot , that means there's some informations the model not captured, the model is poor.We also see the maximun residual is >2.0 ,so the model can mistake the predict quality to far beyond the neighbor quality.  
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+lnreg <- lm(quality~volatile.acidity + 
+               chlorides + 
+               log10(total.sulfur.dioxide) + 
+               sulphates + 
+               log10(alcohol), 
+           data = data[, -c(1)])
+summary(lnreg)
+plot(predict(lnreg), 
+     residuals(lnreg), 
+     ylab = "Residuals", 
+     xlab = "X",   
+     main = "Linear Regression Residual Plot")
+summary(residuals(lnreg))
+
+
+```
+
+We found that these variables are almost 5 totally different things. Volatile.acidity is about acetic acid, chlorides is about salt, alcohol is alcohol.Only total.sulfur.dioxide and sulphates might have slight relationship, they are both about sulfur.Let's examine the two variables.
+This plot show sulphates and total.sulfur.dioxide with data
+In the plot of sulphates and total.sulfur.dioxide. The linear correlation coefficient changes when quality increases. The coef from positive changes from positive to negtive when quality increases. So linear regression model is insufficient to decribe the pattern of the dataset. It must  search for more complex model,such as SVM.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(aes(x = sulphates,
+           y = total.sulfur.dioxide,
+           color = factor(quality)),
+       data = data) +
+    geom_point(alpha = 0.8, size = 2) +
+    geom_smooth(method = 'lm', se = FALSE, size = 1) +
+    scale_color_brewer(type='seq', 
+                       guide=guide_legend(title = 'Qulity'))
+```
+
+We examin the correlation of alcohol and volatile.acidity
+We also see the pattern of correlation coefficient changes with quality.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+ggplot(aes(x = alcohol,
+           y = volatile.acidity,
+           color = factor(quality)),
+       data = data) +
+    geom_point(alpha = 0.8, size = 2) +
+    geom_smooth(method = 'lm', se = FALSE, size = 1) +
+    scale_color_brewer(type='seq', 
+                       guide=guide_legend(title = 'Qulity'))
+
+
+    
+```
+
+The correlation coefficient of alcohol and chlorides changes with quality.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+
+ggplot(aes(x = alcohol,
+           y = chlorides,
+           color = factor(quality)),
+       data = data) +
+    geom_point(alpha = 0.8, size = 2) +
+    geom_smooth(method = 'lm', se = FALSE, size = 1) +
+    scale_color_brewer(type='seq', 
+                       guide=guide_legend(title = 'Qulity'))
+```
+
+We also find that the r^2 is only 0.35 even with all 5 variables have significant pvalue. We also see the correlation coef of variables changes with quality.So linear regression model is insufficient to  explain the variance of quality. We may pursue more complex model. Correlation Coefficients only show they have weak linear correlation, but they may have non linear relationship.
+
+I tried multinominal log-linear regression. I got AIC=3051 with all variables except X(sample sequence number) and selfimplement varialbe "radioacidiy".From the residuals summary, we can see in each predict quality, 1st Qu.is greater than -0.5 and 3rd Qu.is less than 0.5. So more than 50% predict values can be round to correct quality scores. Most residuals occur in quality = 5,6,7. That because most samples have quality 5,6,7. The maximum residual is nearly 1.0 or -1.0, which is pretty smaller than residuals in linear regression model.And that means it predict might mistake quality to the neighbor quality score.I think this mistaken is quite reasonable and acceptable. I think multinominal log-linear model do better prediction than linear regression model in this dataset.
+
+```{r echo=FALSE,message=FALSE, warning=FALSE}
+names(data)
+ml <- multinom(factor(quality)~., 
+               data = data[, -c(1,14)]) 
+# remove X and Ratioacidity variables
+summary(ml)
+plot(predict(ml),
+     residuals(ml),
+     ylab = 'Residuals',
+     xlab = 'X',
+     title = 'Multinominal Residuals Plot')
+summary(residuals(ml))
+```
+
+      
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+In our linear regression model:volatile.acidity+chlorides+total.sulfur.dioxide+sulphates+alcohol
+ are have significant pvalus.
+ 
+Volatile.acidity decreases when quality increase. High quality wine has lower volatile.acidity.
+
+Chlorides go down when quality increases.High quality wine has less salt.
+
+Sulphates and alcohol go up when quality increases.High quality wine has more alcohol and sulphates,which is acted as antioxidant.
+
+Total.sulfur.dioxide is not  monotonous,it goes up when quality goes from bad to normal and goes down when quality goes from normal to excellent.So it is mysterious how it act in quality.
+
+
+
+### Were there any interesting or surprising interactions between features?
+Total.sulfur.dioxide is not  monotonous,it goes up when quality goes from bad to normal and goes down when quality goes from normal to excellent.So it is mysterious how it act in quality.
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+Firstly,I created a linear regression model removing X and ratioacidity variables with 
+lm(quality~volatile.acidity+chlorides+total.sulfur.dioxide+sulphates+alcohol,data=data[, -c(1,14)])
+ 
+I only got r^2 is 0.35, which is  pretty low. It implies that linear regression model can't explain the variance of quality.  Correlation Coefficients only show they have weak linear correlation, but they may have non linear correlation. Pair of variables's correlation coefficient changes when quality changes. That's also indicate that linear regression is not sufficient for modelling in the dataset. We must pursue more complex model.
+I have read the abstract of the article 'Modeling wine preferences by data mining from physicochemical properties.'by P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis.(http://www.sciencedirect.com/science/article/pii/S0167923609001377).They used SVM to create the model.
+
+I also tried  multinominal logistic model has  AIC =3051.
+
+mul_red<-multinom(quality~.,data=data[, -c(1,14)])
+
+I used residuals plot to compare multinominal log-linear model and linear regression model.And multinominal log-linear model is better for this dataset.
+
+
+
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE,message=FALSE, warning=FALSE, Plot_One}
+qplot(x = as.factor(data$quality),data = data) +
+    xlab('Quality') +
+    ylab('Count') +
+    ggtitle("Histogram of Quality")
+summary(data$quality)
+```
+
+### Description One
+Most samples quality scores are 5,6 and 7,fewer samples are less than 5 or more than 7.The quality scores were graded by expert between 0(very bad) and 10(very excellent).That means there are much more normal wines than excellent or poor ones.The distribution is nearly Normal distribution.
+
+### Plot Two
+```{r echo=FALSE,message=FALSE, warning=FALSE, Plot_Two, fig.height=20}
+#names(data)
+cor_variable <- c()
+for(i in 1:11){
+cor_variable <- rbind(cor_variable,
+                      cor.test(data[, i+1],
+                               data$quality)['estimate'])
+}
+#names(data[,c(2:12)])
+cor_variable <- data.frame(cor_variable,
+                           row.names=names(data[, c(2:12)]))
+cor_variable
+cor_variable <- sort(as.numeric(cor_variable$estimate),method='radix',index.return=TRUE)
+#names(data[, c(2:12)])[cor_variable$ix]
+
+#par(mar=c(5,4,4,5)) # margin size c(bottom, left, top, right) in lines. 
+barplot(cor_variable$x,
+        #names.arg=names(data[, c(2:12)])[cor_variable$ix],
+        main=("Correlation Coefficient of 
+              Properties and Quality"),
+        ylab=("Correlation Coefficient"),
+        xlab=("Properties"),
+        horiz=FALSE,
+        legend= names(data[, c(2:12)])[cor_variable$ix],
+        col=c("red","navy","green","blue","purple",
+              "gold","cyan","brown","yellow","magenta",
+              "pink"))
+```
+
+### Description Two
+In this plot we see there's no variable have strong linear relationship with quality. The highest correlaton coefficient is alcohol of 0.47, which is a moderate correlation. Correlation coefficient only measures linear relationship.They are may be some nonlinear relationship with quality and some variables.They can't be identified by linear regression model.So a better model of the redwine dataset might be more complex than linear regression model.
+
+### Plot Three
+```{r echo=FALSE,message=FALSE, warning=FALSE, Plot_Three}
+ggplot(aes(x = sulphates,
+           y = total.sulfur.dioxide,
+           color= factor(quality)),
+       data = data)+
+    geom_point(alpha = 0.8,size = 2) +
+    geom_smooth(method ='lm',se = FALSE,size = 1) +
+    scale_color_brewer(type = 'seq',
+                       guide = guide_legend(title = 'quality')) +
+    ggtitle("Correlation Coefficient of Sulphates and Total.sulfur.dioxide") +
+    xlab("sulphates (g / dm^3)") +
+    ylab("total.sulfur.dioxide (mg / dm^3)")
+```
+
+### Description Three
+
+In the plot of sulphates and total.sulfur.dioxide. The linear correlation coefficient changes when quality increases. The coef from positive changes from positive to negtive when quality increases. So linear regression model is insufficient to decribe the pattern of the dataset. It must  search for more complex model,such as SVM.
+
+
+# Reflection
+The redwine data set contains information on 1599 samples of red wine across 12 features( "fixed.acidity","volatile.acidity","citric.acid","residual.sugar","chlorides","free.sulfur.dioxide","total.sulfur.dioxide","density","pH","sulphates","alcohol","quality"). The project is explore analysis on the relationship of physicochemical properties and quality scores.I started by understanding the individual variables in the data set, and then I explored the relationship with each variable and quality. I explored correlation coefficient of each two variables and quality.I found some interesting nonmonotonous patterns of total.sulfur.dioxide and free.sulfur.dioxide with quality. I also found correlation coefficients of each property variable changes with quality. Eventually, I used linear regression model and got R^2 only 0.35 and compared with a multinominal log-linear model with residual plot to found out multinominal log-linear model is better(lower residual) than linear regression to predict the quality.
+
+I have discussed the weakness of correlation coefficent on variables and quality, and the correlation coefficent changes with quality. So linear regression model is not enough to capture the pattern of dataset. It must search for more complex model,such as SVM.
+
+I think further analysis can study on multinominal  or SVM to built a model to explain the variance of quality and predict quality with physicalchemical properties. 
+
+
